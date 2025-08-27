@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                insert into sent_solves\n                (challenge_name, player_id)\n                values ($1, $2)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7fdf0acde87d530b65743b4da638757d9c01f203129f7c162ee1f43ac6ce6565"
+}
