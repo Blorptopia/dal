@@ -8,10 +8,12 @@ use crate::services::team_fetcher::TeamFetcherService;
 use crate::services::webhook::WebhookService;
 use crate::state::AppState;
 use crate::USER_AGENT;
+use sqlx::migrate::MigrateError;
 use tokio::sync::mpsc;
 use http::header::USER_AGENT as USER_AGENT_HEADER_KEY;
 use http::{HeaderMap, HeaderValue};
 use tokio::net::TcpListener;
+use tracing::Instrument;
 
 pub(crate) async fn run() -> Result<(), AppRunError> {
     let config = {
@@ -27,6 +29,11 @@ pub(crate) async fn run() -> Result<(), AppRunError> {
             .build()
             .expect("all options is known to be good")
     };
+
+    // Run migrations
+    async {
+        repository.run_migrations().await
+    }.instrument(tracing::info_span!("run migrations")).await?;
     
     // Services
     let (solve_tx, solve_rx) = mpsc::unbounded_channel();
@@ -37,9 +44,6 @@ pub(crate) async fn run() -> Result<(), AppRunError> {
     let solve_sender_service = SolveSenderService::new(webhook_service.clone(), player_fetcher_service.clone(), team_fetcher_service.clone(), repository.clone());
     solve_fetcher_service.clone().start();
     solve_sender_service.clone().start(solve_rx);
-
-
-
 
     let state = Arc::new(AppState {
         solve_fetcher_service
@@ -63,5 +67,7 @@ pub(crate) enum AppRunError {
     #[error("failed to parse config")]
     ConfigParseError(toml::de::Error),
     #[error("failed to connect to postgres")]
-    PostgresConnectionError(sqlx::Error)
+    PostgresConnectionError(sqlx::Error),
+    #[error("failed to run migrations")]
+    FailedToReadMigrations(#[from] MigrateError)
 }

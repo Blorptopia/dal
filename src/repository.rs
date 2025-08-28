@@ -1,3 +1,6 @@
+use std::path::Path;
+
+use sqlx::migrate::{MigrateError, Migrator};
 use uuid::Uuid;
 
 pub(crate) struct Repository {
@@ -10,6 +13,12 @@ impl Repository {
         Ok(Self {
             pool
         })
+    }
+    pub(crate) async fn run_migrations(&self) -> Result<(), MigrateError> {
+        let migrator = Migrator::new(Path::new("migrations")).await?;
+        migrator.run(&self.pool).await?;
+
+        Ok(())
     }
     pub(crate) async fn has_sent_solve(&self, challenge_name: &str, player_id: &Uuid) -> Result<bool, sqlx::Error> {
         sqlx::query!(
