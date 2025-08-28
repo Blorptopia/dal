@@ -5,6 +5,8 @@ use std::time::Duration;
 use crate::config::WebhookRole;
 use crate::models::solve::Solve;
 use crate::repository::Repository;
+use crate::services::player_fetcher::PlayerFetcherService;
+use crate::services::team_fetcher::TeamFetcherService;
 use crate::services::webhook::WebhookService;
 use tokio::sync::mpsc;
 use tokio::time::interval;
@@ -14,17 +16,21 @@ pub(crate) struct SolveSenderService {
     failed_to_send_count: AtomicU32,
     failed_to_process_count: AtomicU32,
     webhook_service: Arc<WebhookService>,
+    player_fetcher_service: Arc<PlayerFetcherService>,
+    team_fetcher_service: Arc<TeamFetcherService>,
     repository: Arc<Repository>,
     twilight_client: Arc<twilight_http::Client>
 }
 impl SolveSenderService {
-    pub(crate) fn new(webhook_service: Arc<WebhookService>, repository: Arc<Repository>) -> Arc<SolveSenderService> {
+    pub(crate) fn new(webhook_service: Arc<WebhookService>, player_fetcher_service: Arc<PlayerFetcherService>, team_fetcher_service: Arc<TeamFetcherService>, repository: Arc<Repository>) -> Arc<SolveSenderService> {
         let twilight_client = twilight_http::Client::builder().default_allowed_mentions(AllowedMentions::default()).build();
         let twilight_client = Arc::new(twilight_client);
         let instance = Arc::new(Self {
             failed_to_send_count: AtomicU32::default(),
             failed_to_process_count: AtomicU32::default(),
             webhook_service,
+            player_fetcher_service,
+            team_fetcher_service,
             repository,
             twilight_client
         });
@@ -143,12 +149,29 @@ impl SolveSenderService {
         }
     }
     async fn send_solve_notification(&self, solve: &Solve, is_first_blood: bool) -> Result<(), NotificationSendError> {
-        let user_name = &solve.player_id;
+        let maybe_player = self.player_fetcher_service.get_player(solve.player_id.clone()).await;
+        
+        let player_name = match maybe_player {
+            Some(player) => player.name.clone(),
+            None => "Unknown player (blame cache)".to_string()
+        };
+        
         let challenge_name = &solve.challenge_name;
-        let team_name = "TODO";
 
-        let first_blood_message = format!("🩸 **{user_name}** from **{team_name}** solved **{challenge_name}**");
-        let solve_message = format!("⭐ **{user_name}** from **{team_name}** solved **{challenge_name}**");
+        let maybe_team = self.team_fetcher_service.get_players_team(solve.player_id.clone()).await;
+        let (first_blood_message, solve_message) = match maybe_team {
+            Some(team) => {
+                let team_name = &team.name;
+                let first_blood_message = format!("🩸 **{player_name}** from **{team_name}** solved **{challenge_name}**");
+                let solve_message = format!("⭐ **{player_name}** from **{team_name}** solved **{challenge_name}**");
+                (first_blood_message, solve_message)
+            },
+            None => {
+                let first_blood_message = format!("🩸 **{player_name}** solved **{challenge_name}**");
+                let solve_message = format!("⭐ **{player_name}** solved **{challenge_name}**");
+                (first_blood_message, solve_message)
+            }
+        };
 
         if is_first_blood {
             let first_blood_webhook = self.webhook_service.get_webhook(WebhookRole::FirstBlood).await;

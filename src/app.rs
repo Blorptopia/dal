@@ -1,8 +1,10 @@
 use std::sync::Arc;
 use crate::config::Config;
 use crate::repository::Repository;
+use crate::services::player_fetcher::PlayerFetcherService;
 use crate::services::solve_fetcher::SolveFetcherService;
 use crate::services::solve_sender::SolveSenderService;
+use crate::services::team_fetcher::TeamFetcherService;
 use crate::services::webhook::WebhookService;
 use crate::state::AppState;
 use crate::USER_AGENT;
@@ -29,8 +31,10 @@ pub(crate) async fn run() -> Result<(), AppRunError> {
     // Services
     let (solve_tx, solve_rx) = mpsc::unbounded_channel();
     let webhook_service = Arc::new(WebhookService::new(config.webhooks.clone()));
-    let solve_fetcher_service = SolveFetcherService::new(config.berg_api_base.clone(), http_client, solve_tx);
-    let solve_sender_service = SolveSenderService::new(webhook_service.clone(), repository.clone());
+    let player_fetcher_service = PlayerFetcherService::new(config.berg_api_base.clone(), http_client.clone());
+    let team_fetcher_service = TeamFetcherService::new(config.berg_api_base.clone(), http_client.clone());
+    let solve_fetcher_service = SolveFetcherService::new(config.berg_api_base.clone(), http_client.clone(), solve_tx);
+    let solve_sender_service = SolveSenderService::new(webhook_service.clone(), player_fetcher_service.clone(), team_fetcher_service.clone(), repository.clone());
     solve_fetcher_service.clone().start();
     solve_sender_service.clone().start(solve_rx);
 
