@@ -5,5 +5,6 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Team {
     pub(crate) name: String,
+    #[serde(rename = "players")]
     pub(crate) player_ids: Vec<Uuid>
 }
