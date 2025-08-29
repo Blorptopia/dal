@@ -93,7 +93,13 @@ impl SolveFetcherService {
         };
 
         while let Some(raw_message) = message_rx.recv().await {
-            let message = serde_json::from_str::<WebSocketResponse>(&raw_message).map_err(|error| SolveFetcherError::EventMessageParseError(error))?;
+            let message = match serde_json::from_str::<WebSocketResponse>(&raw_message) {
+                Ok(message) => message,
+                Err(error) => {
+                    tracing::warn!(?error, "oopsie");
+                    continue;
+                }
+            };
 
             let WebSocketResponse::Solve(solve) = message else {
                 continue;
