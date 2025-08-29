@@ -107,6 +107,7 @@ impl SolveFetcherService {
             tracing::debug!(?solve, "got solve from events ws");
             if let Err(error) = self.sender.send(solve) {
                 self.dropped_solves_count.fetch_add(1, Ordering::SeqCst);
+                tracing::error!(?error, "failed to send solve to subscriber");
             }
         }
         Err(SolveFetcherError::EventWebSocketDisconnected)
