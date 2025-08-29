@@ -11,6 +11,7 @@ RUN \
      cargo build --release && \
      cp target/release/dal /opt/dal/dist # This is in the same command because of the cache
 FROM debian:bullseye-slim
+RUN apt-get update && apt-get install -y ca-certificates
 WORKDIR /opt/dal
 COPY --from=builder /opt/dal/migrations/ /opt/dal/migrations/
 COPY --from=builder /opt/dal/dist/dal /opt/dal
